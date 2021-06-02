@@ -1,0 +1,87 @@
+<h1><em>poof!</em></h1>
+<p>Simple Secret Sharing</p>
+<h2>Receive a secret</h2>
+
+<ul>
+  <li>Key: <input type="text" id="key" /></li>
+  <li>Passphrase: <input type="text" id="passphrase" /></li>
+  <li><button id="recv">Reveal Secret</button></li>
+</ul>
+<pre id="secret"></pre>
+
+<script type="module">
+  import { uint8ToBase64, base64ToUint8 } from "/common/util.js";
+
+  const $key = document.getElementById("key");
+  const $passphrase = document.getElementById("passphrase");
+  const $secret = document.getElementById("secret");
+  const $button = document.getElementById("recv");
+
+  // key and passphrase are in the fragment.
+  const data = new URLSearchParams(location.hash.replace(/^#?/, ""));
+  const key = data.get("key");
+  if (key) {
+    $key.value = key;
+  }
+  // passphrase should be in fragment.
+  const phrase = data.get("pass");
+  if (phrase) {
+    $passphrase.value = phrase;
+  }
+
+  const { subtle } = crypto;
+
+  $button.addEventListener("click", async () => {
+    const url = new URL("/api/recv", location);
+
+    // hash the passphrase.
+    const pass = new TextEncoder().encode($passphrase.value);
+    const hash = uint8ToBase64(
+      new Uint8Array(await subtle.digest("SHA-256", pass))
+    );
+    const payload = { key: $key.value, hash };
+    console.log(payload);
+    const { enc = null, errors = null } = await fetch(url.href, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(payload).toString(),
+    }).then((r) => r.json());
+
+    if (errors.length) {
+      $secret.textContent = "Errors:\n - " + errors.join("\n - ");
+      return;
+    }
+
+    // create a key from the passphrase.
+    const passphraseKey = await subtle.importKey(
+      "raw",
+      pass,
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"]
+    );
+    const [b64salt, b64iv, b64ct] = enc.split(":");
+
+    const salt = base64ToUint8(b64salt);
+    const iv = base64ToUint8(b64iv);
+    const ct = base64ToUint8(b64ct);
+    const decKey = await subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      passphraseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["decrypt"]
+    );
+
+    const pt = await subtle.decrypt({ name: "AES-GCM", iv }, decKey, ct);
+    const msg = new TextDecoder().decode(pt);
+
+    // OK boom!
+    $secret.textContent = msg;
+  });
+</script>

@@ -1,0 +1,109 @@
+<h1><em>poof!</em></h1>
+<p>Simple Secret Sharing</p>
+<h2>Share a secret</h2>
+<ul>
+  <li>Passphrase: <input type="text" id="passphrase" /></li>
+  <li>Secret: <textarea id="secret"></textarea></li>
+  <li>
+    Expiry:
+    <select id="ttl">
+      <option value="60">1 minute</option>
+      <option value="300">5 minutes</option>
+      <option value="3600" selected>1 hour</option>
+      <option value="86400">1 day</option>
+    </select>
+  </li>
+  <li><button id="share">Create Sharing Link</button></li>
+</ul>
+
+<pre id="result"></pre>
+
+<script type="module">
+  import { uint8ToBase64 } from "/common/util.js";
+  // elements
+  const $passphrase = document.getElementById("passphrase");
+  const $secret = document.getElementById("secret");
+  const $ttl = document.getElementById("ttl");
+  const $share = document.getElementById("share");
+  const $result = document.getElementById("result");
+
+  // initial random passphrase 128bits
+  $passphrase.value = uint8ToBase64(crypto.getRandomValues(new Uint8Array(16)));
+
+  const { subtle } = crypto;
+
+  $share.addEventListener("click", async () => {
+    // get all the data asap.
+    const secret = $secret.value;
+    const passphrase = $passphrase.value;
+    const passphraseEnc = new TextEncoder().encode($passphrase.value);
+    const ttl = Number.parseInt($ttl.value, 10);
+
+    //has of the passphrase
+    const passphraseHash = uint8ToBase64(
+      new Uint8Array(await subtle.digest("SHA-256", passphraseEnc))
+    );
+    // create a key from the passphrase.
+    const passphraseKey = await subtle.importKey(
+      "raw",
+      passphraseEnc,
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"]
+    );
+
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const message = new TextEncoder().encode(secret);
+    const encKey = await subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      passphraseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt"]
+    );
+
+    const ct = new Uint8Array(
+      await subtle.encrypt({ name: "AES-GCM", iv }, encKey, message)
+    );
+
+    // we need to send the salt/iv/ct to the server.
+    const encrypted = [
+      uint8ToBase64(salt),
+      uint8ToBase64(iv),
+      uint8ToBase64(ct),
+    ].join(":");
+
+    const payload = {
+      enc: encrypted,
+      hash: passphraseHash,
+      ttl,
+    };
+
+    console.log(payload);
+
+    // call out to the API.
+    const { key = null, errors = [] } = await await fetch("/api/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(payload).toString(),
+    }).then((res) => res.json());
+
+    if (errors.length) {
+      $result.textContent = "Errors:\n - " + errors.join("\n - ");
+      return;
+    }
+
+    // update the result div with the key and the hash.
+    const url = new URL("/recv", location);
+    const hash = new URLSearchParams({ key, pass: passphrase });
+    url.hash = hash.toString();
+
+    $result.textContent = `One time URL created:\n\n${url.href}`;
+  });
+</script>
