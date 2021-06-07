@@ -6,6 +6,8 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -142,7 +144,11 @@ func main() {
 	}
 	mux.Handle("/", http.FileServer(http.FS(dir)))
 
-	log.Fatal(http.ListenAndServe("0:5000", mux))
+	// look at the flags for the port
+	port := flag.Int("port", 5000, "port to run the webserver on")
+	flag.Parse()
+	addr := fmt.Sprintf(":%d", *port)
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
 func jsonResponse(w http.ResponseWriter, code int, msg interface{}) {

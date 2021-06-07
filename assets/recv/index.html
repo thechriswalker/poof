@@ -3,8 +3,8 @@
 <h2>Receive a secret</h2>
 
 <ul>
-  <li>Key: <input type="text" id="key" /></li>
-  <li>Passphrase: <input type="text" id="passphrase" /></li>
+  <li>Key: <input type="text" disabled id="key" /></li>
+  <li>Passphrase: <input type="text" disabled id="passphrase" /></li>
   <li><button id="recv">Reveal Secret</button></li>
 </ul>
 <pre id="secret"></pre>
@@ -22,11 +22,15 @@
   const key = data.get("key");
   if (key) {
     $key.value = key;
+  } else {
+    alert("Bad URL, no key");
   }
   // passphrase should be in fragment.
   const phrase = data.get("pass");
   if (phrase) {
     $passphrase.value = phrase;
+  } else {
+    alert("Bad URL, no passphrase");
   }
 
   const { subtle } = crypto;
