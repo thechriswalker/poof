@@ -1,22 +1,27 @@
-<h1><em>poof!</em></h1>
-<p>Simple Secret Sharing</p>
-<h2>Share a secret</h2>
-<ul>
-  <!-- <li>Passphrase: <input type="text" id="passphrase" /></li> -->
-  <li>Secret: <textarea id="secret"></textarea></li>
-  <li>
-    Expiry:
-    <select id="ttl">
-      <option value="60">1 minute</option>
-      <option value="300">5 minutes</option>
-      <option value="3600" selected>1 hour</option>
-      <option value="86400">1 day</option>
-    </select>
-  </li>
-  <li><button id="share">Create Sharing Link</button></li>
-</ul>
+<header>
+  <img alt="poof logo (poof magazine cover)" src="../common/poof.png" />
+  <h1><em>poof!</em></h1>
+  <p>Simple Secret Sharing</p>
+</header>
 
-<pre id="result"></pre>
+<main>
+  <ul>
+    <!-- <li>Passphrase: <input type="text" id="passphrase" /></li> -->
+    <li>Secret: <textarea id="secret"></textarea></li>
+    <li>
+      Expiry:
+      <select id="ttl">
+        <option value="60">1 minute</option>
+        <option value="300">5 minutes</option>
+        <option value="3600" selected>1 hour</option>
+        <option value="86400">1 day</option>
+      </select>
+    </li>
+    <li><button id="share">Create Sharing Link</button></li>
+  </ul>
+
+  <pre id="result"></pre>
+</main>
 
 <footer>
   <p>

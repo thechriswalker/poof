@@ -11,13 +11,13 @@ Lots of prior work in this field (citation required), but I figured I could have
 
 All data held in memory so server reload drops all secrets.
 
-# Demo
+## Demo
 
 A demo server is running at https://poof.0x6377.dev/.
 
 But don't trust me --- run your own!
 
-# Installation
+## Installation
 
 - Build from source with `go build` from the repo
 - Build from source and install with `go get github.com/thechriswalker/poof`
@@ -57,3 +57,7 @@ That's it.
 ## Why?
 
 Because I fancied doing as much of this in the client with JS as possible as an experiment in WebCrypto. As such support is limited to browsers with proper WebCrypto support.
+
+### Why "poof"?
+
+Seriously, go watch Arrested Development. It's awesome -- you won't regret it.
