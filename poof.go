@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/fs"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
@@ -19,6 +19,9 @@ import (
 
 //go:embed assets/*
 var assets embed.FS
+
+//go:embed templates/*
+var templates embed.FS
 
 type Recv struct {
 	Enc    *string  `json:"enc"`
@@ -145,13 +148,38 @@ func main() {
 		// fallback...
 		jsonResponse(w, 404, json.RawMessage(`{"errors":["invalid request"]}`))
 	})
+
 	// otherwise we need the client application from the static dir
 	// strip the prefix on the embedded data
-	dir, err := fs.Sub(assets, "assets")
+	mux.Handle("/assets/", http.FileServer(http.FS(assets)))
+
+	// we parse the templates for /index.html /recv/ and /send/
+	tpl, err := template.ParseFS(templates, "templates/*.html")
 	if err != nil {
 		log.Fatal(err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(dir)))
+	// now we need a handler for this.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		var name string
+		switch r.URL.Path {
+		case "/", "/index.html":
+			name = "index"
+		case "/recv", "/recv/", "/recv/index.html":
+			name = "recv"
+		case "/send", "/send/", "/send/index.html":
+			name = "send"
+		default:
+			// 404
+			http.Error(w, "404: Page not found", 404)
+			return
+		}
+
+		if err := tpl.ExecuteTemplate(w, name, nil); err != nil {
+			// what can we do
+			log.Println("Error rendering template:", err)
+			http.Error(w, "500: Internal Error", 500)
+		}
+	})
 
 	// look at the flags for the port
 	port := flag.Int("port", 5000, "port to run the webserver on")

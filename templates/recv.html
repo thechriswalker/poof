@@ -1,0 +1,173 @@
+{{define "recv"}}{{template "header"}}
+<main>
+  <h2>Receive a Secret</h2>
+  <dl>
+    <dt>Key:</dt>
+    <dd><input type="text" disabled id="key" /></dd>
+    <dt>Passphrase:</dt>
+    <dd><input type="text" disabled id="passphrase" /></dd>
+    <dt><button id="recv">Reveal Secret</button></dt>
+  </dl>
+  <div id="result" style="display:none">
+    <h3>Secret Burned</h3>
+    <p><strong>Do not</strong> leave this page until you have copied the secret, you <strong>will not</strong> be able
+      to see it again.
+    <p><textarea autocomplete=false spellcheck=false id="secret" style="
+            background-color: #090;
+            color: white;
+            padding: 1em;
+            margin: 1em;
+            font-size: larger;
+            font-family: monospace;
+          "></textarea>
+  </div>
+  <div id="error" style="
+            display:none;
+            background-color: #900;
+            color: white;
+            padding: 1em;
+            margin: 1em;
+          ">
+    <h3>Something has gone wrong...</h3>
+    <ul id="errors"></ul>
+    <div>
+</main>
+<script nomodule>
+  alert("Sorry, your browser doesn't support the required features");
+</script>
+<script type="module">
+  import {
+    uint8ToBase64,
+    base64ToUint8,
+    supportsEnoughCrypto,
+  } from "/assets/util.js";
+  window.onhashchange = () => window.location.reload();
+
+  main();
+  async function main() {
+    if (!(await supportsEnoughCrypto())) {
+      alert("Sorry, your browser doesn't support the required features");
+      return;
+    }
+    const $key = document.getElementById("key");
+    const $passphrase = document.getElementById("passphrase");
+    const $secret = document.getElementById("secret");
+    const $button = document.getElementById("recv");
+    const $result = document.getElementById("result");
+    const $error = document.getElementById("error");
+    const $errors = document.getElementById("errors");
+
+    function handleErrors(errs) {
+      $errors.textContent = '';
+      errs.forEach(err => {
+        const $li = document.createElement("li");
+        $li.textContent = err;
+        $errors.appendChild($li);
+      });
+      $error.style.display = "block";
+    }
+
+    // key and passphrase are in the fragment.
+    const data = new URLSearchParams(location.hash.replace(/^#?/, ""));
+    const key = data.get("key");
+    const urlErrors = [];
+    if (key) {
+      $key.value = key;
+    } else {
+      urlErrors.push("URL did not contain the `key`");
+    }
+    // passphrase should be in fragment.
+    const phrase = data.get("pass");
+    if (phrase) {
+      $passphrase.value = phrase;
+    } else {
+      urlErrors.push("URL did not contain the `pass`");
+    }
+    if (!key || !phrase) {
+      urlErrors.push(
+        "URL does not contain all the required information. Please check the copied URL is complete and reload."
+      );
+      inflight = true;
+      $button.disabled = true;
+      handleErrors(urlErrors)
+      return;
+    }
+
+    const { subtle } = crypto;
+
+    // only let the button be pressed once.
+    let inflight = false;
+    $button.addEventListener("click", async () => {
+      if (inflight) { return; }
+      inflight = true;
+      $button.disabled = true;
+
+      const url = new URL("/api/recv", location);
+
+      // hash the passphrase.
+      const pass = new TextEncoder().encode($passphrase.value);
+      const hash = uint8ToBase64(
+        new Uint8Array(await subtle.digest("SHA-256", pass))
+      );
+      const payload = { key: $key.value, hash };
+      console.log(payload);
+      let sealed;
+      try {
+        const { enc = null, errors = null } = await fetch(url.href, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams(payload).toString(),
+        }).then((r) => r.json());
+
+        if (errors.length) {
+          handleErrors(errors)
+          return;
+        }
+        sealed = enc;
+      } catch (err) {
+        handleErrors([err.message])
+        return;
+      }
+      // anything after this and the secret is burned...
+      $button.textContent = "Secret Burned";
+      try {
+        // create a key from the passphrase.
+        const passphraseKey = await subtle.importKey(
+          "raw",
+          pass,
+          { name: "PBKDF2" },
+          false,
+          ["deriveKey"]
+        );
+
+        const [b64salt, b64iv, b64ct] = sealed.split(":");
+        const salt = base64ToUint8(b64salt);
+        const iv = base64ToUint8(b64iv);
+        const ct = base64ToUint8(b64ct);
+
+        const decKey = await subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt,
+            iterations: 100000,
+            hash: "SHA-256",
+          },
+          passphraseKey,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["decrypt"]
+        );
+
+        const pt = await subtle.decrypt({ name: "AES-GCM", iv }, decKey, ct);
+        const msg = new TextDecoder().decode(pt);
+
+        // OK boom!
+        $secret.value = msg;
+        $result.style.display = "block";
+      } catch (err) {
+        handleErrors([`Error decrypting secret - invalid. It is now burned`])
+      }
+    });
+  }
+</script>
+{{template "footer"}}{{end}}
