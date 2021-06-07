@@ -1,4 +1,4 @@
-![Poof Magazine](assets/poof.png)
+![Poof Magazine](assets/common/poof.png)
 
 # poof! magically disappearing secret sharing
 
@@ -51,6 +51,8 @@ The sharer gives the ~key and the passphrase~ _URL_ (which contains the passphra
 - `/recv#key=<key>&pass=<pass>` HTML Client for receiving a secret
 - `POST /api/send` with `enc=<encrypted secret>&hash=<hash of passphrase>&ttl=<seconds to keep>` returns JSON `{"key": "<key or null>", "errors": ["<string>"]}`
 - `POST /api/recv` with `key=<key>&hash=<hash>` returns JSON `{"enc":"<encrypted secret or null>","errors": ["<string>"]}`
+
+- `GET /api/stats` returns JSON with counts of size of current set, number of secrets added, burned, expired (reset at reload of service)
 
 That's it.
 

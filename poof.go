@@ -132,6 +132,15 @@ func main() {
 			res.Key = &key
 			jsonResponse(w, 200, res)
 			return
+		} else if r.Method == "GET" && r.URL.Path == "/api/stats" {
+			s, a, e, b := kv.Metrics()
+			jsonResponse(w, 200, map[string]uint64{
+				"size":    s,
+				"added":   a,
+				"expired": e,
+				"burned":  b,
+			})
+			return
 		}
 		// fallback...
 		jsonResponse(w, 404, json.RawMessage(`{"errors":["invalid request"]}`))
@@ -162,6 +171,11 @@ type Store struct {
 	seed []byte
 	data map[Key]*Entry
 	mtx  *sync.RWMutex
+
+	// metrics
+	added   uint64
+	expired uint64
+	burned  uint64
 }
 
 func NewStore() *Store {
@@ -180,13 +194,20 @@ type Entry struct {
 	CancelEviction func()
 }
 
+func (kv *Store) Metrics() (size uint64, added uint64, expired uint64, burned uint64) {
+	kv.mtx.RLock()
+	size = uint64(len(kv.data))
+	added, expired, burned = kv.added, kv.expired, kv.burned
+	kv.mtx.RUnlock()
+	return
+}
+
 func (kv *Store) Set(enc, hash string, ttl int) Key {
 	// the key is the hash of the encrypted enc, to prevent collisions.
 	key := kv.sha(enc)
 	kv.mtx.Lock()
 	timer := time.AfterFunc(time.Duration(ttl)*time.Second, func() {
-		log.Printf("Expiring Key %02x", key)
-		kv.delete(key)
+		kv.delete(key, false)
 	})
 	kv.data[key] = &Entry{
 		Enc:  enc,
@@ -195,9 +216,8 @@ func (kv *Store) Set(enc, hash string, ttl int) Key {
 			timer.Stop()
 		},
 	}
-	log.Printf("Adding Key %02x", key)
+	kv.added++
 	kv.mtx.Unlock()
-
 	return key
 }
 
@@ -210,9 +230,14 @@ func (kv *Store) sha(s string) (k Key) {
 	return
 }
 
-func (kv *Store) delete(k Key) {
+func (kv *Store) delete(k Key, isBurn bool) {
 	kv.mtx.Lock()
 	delete(kv.data, k)
+	if isBurn {
+		kv.burned++
+	} else {
+		kv.expired++
+	}
 	kv.mtx.Unlock()
 }
 
@@ -225,9 +250,8 @@ func (kv *Store) Get(k Key, hash string) (enc string, ok bool) {
 	}
 	kv.mtx.RUnlock()
 	// we got a hit. We need to remove the key.
-	log.Printf("Burning Key %02x", k)
 	v.CancelEviction()
-	kv.delete(k)
+	kv.delete(k, true)
 	// ok, return the data
 	return v.Enc, true
 }
