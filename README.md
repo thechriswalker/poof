@@ -1,3 +1,5 @@
+![Poof Magazine](assets/poof.png)
+
 # poof! magically disappearing secret sharing
 
 Lots of prior work in this field (citation required), but I figured I could have a go and see about leveraging the new `WebCrypto` APIs.
@@ -19,7 +21,6 @@ But don't trust me --- run your own!
 
 - Build from source with `go build` from the repo
 - Build from source and install with `go get github.com/thechriswalker/poof`
-
 
 Produces a single binary `poof` that will run a web server on port 5000 or specify a different port with `-port=X`
 
