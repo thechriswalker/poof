@@ -16,7 +16,7 @@
     </dl>
     <p style="font-size:large"><button id="share">Create Sharing Link</button>
 
-    <div id="result" style="visibility:hidden">
+    <div id="result" style="display:none">
       <h3>URL Created</h3>
       <p>Visiting the URL will not burn it, but clicking the <mark>reveal</mark> button on the linked page will.
       <p style="
@@ -28,6 +28,16 @@
         font-family: monospace;
       "><a style="color: white; overflow-wrap: anywhere;" id="link" target="_new"></a>
     </div>
+    <div id="error" style="
+            display:none;
+            background-color: #900;
+            color: white;
+            padding: 1em;
+            margin: 1em;
+          ">
+    <h3>Something has gone wrong...</h3>
+    <ul id="errors"></ul>
+    <div>
   </main>
 
   <script nomodule>
@@ -48,7 +58,18 @@
       const $share = document.getElementById("share");
       const $result = document.getElementById("result");
       const $link = document.getElementById("link");
+      const $error = document.getElementById("error");
+      const $errors = document.getElementById("errors");
 
+      function handleErrors(errs) {
+        $errors.textContent = '';
+        errs.forEach(err => {
+          const $li = document.createElement("li");
+          $li.textContent = err;
+          $errors.appendChild($li);
+        });
+        $error.style.display = "block";
+      }
       // initial random passphrase 128bits
       const getPassphrase = () =>
         uint8ToBase64(crypto.getRandomValues(new Uint8Array(16)));
@@ -56,6 +77,9 @@
       const { subtle } = crypto;
 
       $share.addEventListener("click", async () => {
+        $error.style.display = "none";
+        $result.style.display = "none";
+
         // get all the data asap.
         const secret = $secret.value;
         const passphrase = getPassphrase();
@@ -108,27 +132,33 @@
           ttl,
         };
 
-        console.log(payload);
 
         // call out to the API.
-        const { key = null, errors = [] } = await await fetch("/api/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams(payload).toString(),
-        }).then((res) => res.json());
+        let serverKey;
+        try {
+          const { key = null, errors = [] } = await await fetch("/api/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(payload).toString(),
+          }).then((res) => res.json());
 
-        if (errors.length) {
-          $result.textContent = "Errors:\n - " + errors.join("\n - ");
+          if (errors.length) {
+            handleErrors(errors);
+            return;
+          }
+          serverKey = key;
+        } catch(err) {
+          handleErrors([err.message]);
           return;
         }
 
         // update the result div with the key and the hash.
         const url = new URL("/recv", location);
-        const hash = new URLSearchParams({ key, pass: passphrase });
+        const hash = new URLSearchParams({ key: serverKey, pass: passphrase });
         url.hash = hash.toString();
         $link.href = url.href;
         $link.textContent = url.href;
-        $result.style = "visibility:visible";
+        $result.style.display = "block";
       });
     }
   </script>

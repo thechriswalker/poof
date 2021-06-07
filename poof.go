@@ -34,7 +34,12 @@ type Send struct {
 }
 
 func main() {
-	kv := NewStore()
+	// look at the flags for the port
+	port := flag.Int("port", 5000, "port to run the webserver on")
+	maxHTTPBytes := flag.Int64("max-http-size", 50*1024, "Max allowable upload size - affects secrets that can be stored.")
+	maxSecretCount := flag.Int("max-secrets", 1048576, "max number of secrets we will store at one time")
+	flag.Parse()
+	kv := NewStore(*maxSecretCount)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" && r.URL.Path == "/api/recv" {
@@ -129,7 +134,12 @@ func main() {
 			}
 
 			// OK store the data!
-			rawkey := kv.Set(enc, hash, ttl)
+			rawkey, ok := kv.Set(enc, hash, ttl)
+			if !ok {
+				res.Errors = append(res.Errors, "Service at Capacity, please wait for secrets to burn or expire")
+				jsonResponse(w, http.StatusServiceUnavailable, res)
+				return
+			}
 
 			key := base64.RawURLEncoding.EncodeToString(rawkey[:])
 			res.Key = &key
@@ -181,11 +191,14 @@ func main() {
 		}
 	})
 
-	// look at the flags for the port
-	port := flag.Int("port", 5000, "port to run the webserver on")
-	flag.Parse()
+	// finally wrap everything in a handler that limits the HTTP body size.
+	maxUploadWrapper := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, *maxHTTPBytes)
+		mux.ServeHTTP(w, r)
+	})
+
 	addr := fmt.Sprintf(":%d", *port)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, maxUploadWrapper))
 }
 
 func jsonResponse(w http.ResponseWriter, code int, msg interface{}) {
@@ -196,9 +209,10 @@ func jsonResponse(w http.ResponseWriter, code int, msg interface{}) {
 
 // we could use redis for the storage, but we'll just use an in-memory map (with TTL).
 type Store struct {
-	seed []byte
-	data map[Key]*Entry
-	mtx  *sync.RWMutex
+	seed      []byte
+	sizeLimit int // how many entries we allow.
+	data      map[Key]*Entry
+	mtx       *sync.RWMutex
 
 	// metrics
 	added   uint64
@@ -206,13 +220,14 @@ type Store struct {
 	burned  uint64
 }
 
-func NewStore() *Store {
+func NewStore(max int) *Store {
 	seed := make([]byte, 16)
 	rand.Read(seed)
 	return &Store{
-		seed: seed,
-		data: map[Key]*Entry{},
-		mtx:  &sync.RWMutex{},
+		seed:      seed,
+		sizeLimit: max,
+		data:      map[Key]*Entry{},
+		mtx:       &sync.RWMutex{},
 	}
 }
 
@@ -230,10 +245,15 @@ func (kv *Store) Metrics() (size uint64, added uint64, expired uint64, burned ui
 	return
 }
 
-func (kv *Store) Set(enc, hash string, ttl int) Key {
+func (kv *Store) Set(enc, hash string, ttl int) (Key, bool) {
 	// the key is the hash of the encrypted enc, to prevent collisions.
 	key := kv.sha(enc)
 	kv.mtx.Lock()
+	if kv.sizeLimit > 0 && kv.sizeLimit <= len(kv.data) {
+		// nope.
+		kv.mtx.Unlock()
+		return key, false
+	}
 	timer := time.AfterFunc(time.Duration(ttl)*time.Second, func() {
 		kv.delete(key, false)
 	})
@@ -246,7 +266,7 @@ func (kv *Store) Set(enc, hash string, ttl int) Key {
 	}
 	kv.added++
 	kv.mtx.Unlock()
-	return key
+	return key, true
 }
 
 func (kv *Store) sha(s string) (k Key) {
