@@ -1,9 +1,12 @@
 {{define "index"}}{{template "header"}}
 <main>
   <p><strong>poof</strong> is a one time password sharing service, so you don't email/IM passwords to colleagues/friends/family.
-  <p>There's a lot more technical detail on <a href="https://github.com/thechriswalker/poof">Github</a> and if you are technically minded, the source code of this page will show you how your secret is never revealed to the server.
-  <ul>
-    <li style="font-size:large"><a href="send">Share a secret</a></li>
-  </ul>
+
+
+  <p style="font-size:x-large;margin-left:1em;padding:1em;"><a href="send">Share a secret</a></li>
+
+
+  <p>There's a lot more technical detail on <a href="https://github.com/thechriswalker/poof">Github</a> and the source code is really small, so as to be auditable.
+
 </main>
 {{template "footer"}}{{end}}
