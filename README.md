@@ -1,4 +1,4 @@
-![Poof Magazine](assets/common/poof.png)
+![Poof Magazine](assets/poof.png)
 
 # poof! magically disappearing secret sharing
 
