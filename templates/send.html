@@ -1,165 +1,122 @@
 {{define "send"}}{{template "header"}}
-  <main>
-    <h2>Share a secret</h2>
-    <dl>
-      <dt>Secret:<dt>
-      <dd><textarea autocomplete=false spellcheck=false id="secret"></textarea></dd>
-      <dt>Expiry:<dt>
-      <dd>
-        <select id="ttl">
-          <option value="60">1 minute</option>
-          <option value="300">5 minutes</option>
-          <option value="3600" selected>1 hour</option>
-          <option value="86400">1 day</option>
-        </select>
-      </dd>
-    </dl>
-    <p style="font-size:large"><button id="share">Create Sharing Link</button>
+<main>
+  <h2>Share a secret</h2>
+  <dl>
+    <dt>Secret:</dt>
+    <dt></dt>
+    <dd>
+      <textarea autocomplete="false" spellcheck="false" id="secret"></textarea>
+    </dd>
+    <dt>Expiry:</dt>
+    <dt></dt>
+    <dd>
+      <select id="ttl">
+        <option value="60">1 minute</option>
+        <option value="300">5 minutes</option>
+        <option value="3600" selected>1 hour</option>
+        <option value="86400">1 day</option>
+      </select>
+    </dd>
+  </dl>
+  <p style="font-size: large">
+    <button id="share">Create Sharing Link</button>
+  </p>
 
-    <div id="result" style="display:none">
-      <h3>URL Created</h3>
-      <p>Visiting the URL will not burn it, but clicking the <mark>reveal</mark> button on the linked page will.
-      <p style="
-        background-color: #090;
-        color: white;
-        padding: 1em;
-        margin: 1em;
-        font-size: larger;
-        font-family: monospace;
-      "><a style="color: white; overflow-wrap: anywhere;" id="link" target="_new"></a>
-    </div>
-    <div id="error" style="
-            display:none;
-            background-color: #900;
-            color: white;
-            padding: 1em;
-            margin: 1em;
-          ">
+  <div id="result" style="display: none">
+    <h3>URL Created</h3>
+    <p>
+      Visiting the URL will not burn it, but clicking the
+      <mark>reveal</mark> button on the linked page will.
+    </p>
+    <p class="box good">
+      <a id="link" target="_blank"></a>
+    </p>
+  </div>
+
+  <div id="error" class="box bad" style="display: none">
     <h3>Something has gone wrong...</h3>
     <ul id="errors"></ul>
-    <div>
-  </main>
+  </div>
+</main>
 
-  <script nomodule>
-    alert("Sorry, your browser doesn't support the required features");
-  </script>
-  <script type="module">
-    import { uint8ToBase64, supportsEnoughCrypto } from "/assets/util.js";
-    main();
-    async function main() {
-      if (!(await supportsEnoughCrypto())) {
-        alert("Sorry, your browser doesn't support the required features");
+<script nomodule>
+  alert("Sorry, your browser doesn't support the required features");
+</script>
+<script type="module">
+  import {
+    checkBrowserSupport,
+    encrypt,
+    processPassphrase,
+    generatePassphrase,
+    dom,
+  } from "/assets/poof.js";
+  main();
+  async function main() {
+    const { ok, error } = await checkBrowserSupport();
+    if (!ok) {
+      alert(
+        "Sorry, your browser doesn't support the required features\n" +
+          error.message
+      );
+      return;
+    }
+
+    // elements
+    const { $secret, $ttl, $share, $result, $link, $error, $errors } = dom;
+
+    function handleErrors(errs) {
+      $errors.textContent = "";
+      errs.forEach((err) => {
+        const $li = document.createElement("li");
+        $li.textContent = err;
+        $errors.appendChild($li);
+      });
+      $error.style.display = "block";
+    }
+
+    $share.addEventListener("click", async () => {
+      $error.style.display = "none";
+      $result.style.display = "none";
+
+      // get all the data asap.
+      const secret = $secret.value;
+      const passphrase = await generatePassphrase();
+      const ttl = Number.parseInt($ttl.value, 10);
+
+      const { derivationKey, hash } = await processPassphrase(passphrase);
+      const ciphertext = await encrypt(secret, derivationKey);
+      const payload = { enc: ciphertext, hash, ttl };
+
+      // call out to the API.
+      let serverKey;
+      try {
+        const { key = null, errors = [] } = await await fetch("/api/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams(payload).toString(),
+        }).then((res) => res.json());
+
+        if (errors.length) {
+          handleErrors(errors);
+          return;
+        }
+        serverKey = key;
+      } catch (err) {
+        handleErrors([err.message]);
         return;
       }
 
-      // elements
-      const $secret = document.getElementById("secret");
-      const $ttl = document.getElementById("ttl");
-      const $share = document.getElementById("share");
-      const $result = document.getElementById("result");
-      const $link = document.getElementById("link");
-      const $error = document.getElementById("error");
-      const $errors = document.getElementById("errors");
-
-      function handleErrors(errs) {
-        $errors.textContent = '';
-        errs.forEach(err => {
-          const $li = document.createElement("li");
-          $li.textContent = err;
-          $errors.appendChild($li);
-        });
-        $error.style.display = "block";
-      }
-      // initial random passphrase 128bits
-      const getPassphrase = () =>
-        uint8ToBase64(crypto.getRandomValues(new Uint8Array(16)));
-
-      const { subtle } = crypto;
-
-      $share.addEventListener("click", async () => {
-        $error.style.display = "none";
-        $result.style.display = "none";
-
-        // get all the data asap.
-        const secret = $secret.value;
-        const passphrase = getPassphrase();
-        const passphraseEnc = new TextEncoder().encode(passphrase);
-        const ttl = Number.parseInt($ttl.value, 10);
-
-        //has of the passphrase
-        const passphraseHash = uint8ToBase64(
-          new Uint8Array(await subtle.digest("SHA-256", passphraseEnc))
-        );
-        // create a key from the passphrase.
-        const passphraseKey = await subtle.importKey(
-          "raw",
-          passphraseEnc,
-          { name: "PBKDF2" },
-          false,
-          ["deriveKey"]
-        );
-
-        const salt = crypto.getRandomValues(new Uint8Array(16));
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const message = new TextEncoder().encode(secret);
-        const encKey = await subtle.deriveKey(
-          {
-            name: "PBKDF2",
-            salt,
-            iterations: 100000,
-            hash: "SHA-256",
-          },
-          passphraseKey,
-          { name: "AES-GCM", length: 256 },
-          false,
-          ["encrypt"]
-        );
-
-        const ct = new Uint8Array(
-          await subtle.encrypt({ name: "AES-GCM", iv }, encKey, message)
-        );
-
-        // we need to send the salt/iv/ct to the server.
-        const encrypted = [
-          uint8ToBase64(salt),
-          uint8ToBase64(iv),
-          uint8ToBase64(ct),
-        ].join(":");
-
-        const payload = {
-          enc: encrypted,
-          hash: passphraseHash,
-          ttl,
-        };
-
-
-        // call out to the API.
-        let serverKey;
-        try {
-          const { key = null, errors = [] } = await await fetch("/api/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams(payload).toString(),
-          }).then((res) => res.json());
-
-          if (errors.length) {
-            handleErrors(errors);
-            return;
-          }
-          serverKey = key;
-        } catch(err) {
-          handleErrors([err.message]);
-          return;
-        }
-
-        // update the result div with the key and the hash.
-        const url = new URL("/recv", location);
-        const hash = new URLSearchParams({ key: serverKey, pass: passphrase });
-        url.hash = hash.toString();
-        $link.href = url.href;
-        $link.textContent = url.href;
-        $result.style.display = "block";
-      });
-    }
-  </script>
+      // update the result div with the key and the hash.
+      const url = new URL("/recv", location);
+      const fragment = new URLSearchParams({
+        key: serverKey,
+        pass: passphrase,
+      }).toString();
+      url.hash = fragment;
+      $link.href = url.href;
+      $link.textContent = url.href;
+      $result.style.display = "block";
+    });
+  }
+</script>
 {{template "footer"}}{{end}}

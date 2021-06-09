@@ -5,23 +5,52 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>poof!</title>
-    <style></style>
+    <style>
+      header img {
+        max-width: 100%;
+        height: auto;
+        outline: none;
+      }
+      header span {
+        font-size: 50%;
+        font-weight: normal;
+      }
+      .box {
+        background-color: var(--bg, #ddd);
+        color: white;
+        padding: 1em;
+        margin: 1em;
+        font-size: larger;
+        font-family: monospace;
+      }
+      .box a {
+        color: white;
+        overflow-wrap: anywhere;
+      }
+      .good {
+        --bg: #090;
+      }
+      .bad {
+        --bg: #900;
+      }
+    </style>
   </head>
-
   <body>
     <header>
       <a href="/">
         <img
-          style="max-width: 100%; outline:none;"
+          width="643"
+          height="180"
           alt="poof logo (poof magazine cover)"
           src="/assets/poof.png"
         />
       </a>
-      <h1><em>poof!</em> <span style="font-size:50%;font-weight:normal">Simple Secret Sharing</span></h1>
+      <h1>
+        <em>poof!</em>
+        <span>Simple Secret Sharing</span>
+      </h1>
     </header>
-{{end}}
-
-{{define "footer" -}}
+    {{end}} {{define "footer" -}}
     <footer>
       <p>
         <small>

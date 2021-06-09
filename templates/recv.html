@@ -8,58 +8,79 @@
     <dd><input type="text" disabled id="passphrase" /></dd>
     <dt><button id="recv">Reveal Secret</button></dt>
   </dl>
-  <div id="result" style="display:none">
+  <div id="result" style="display: none">
     <h3>Secret Burned</h3>
-    <p><strong>Do not</strong> leave this page until you have copied the secret, you <strong>will not</strong> be able
-      to see it again.
-    <p><textarea autocomplete=false spellcheck=false id="secret" style="
-            background-color: #090;
-            color: white;
-            padding: 1em;
-            margin: 1em;
-            font-size: larger;
-            font-family: monospace;
-          "></textarea>
+    <p>
+      <strong>Do not</strong> leave this page until you have copied the secret,
+      you <strong>will not</strong> be able to see it again.
+    </p>
+
+    <p>
+      <textarea
+        autocomplete="false"
+        spellcheck="false"
+        id="secret"
+        style="
+          background-color: #090;
+          color: white;
+          padding: 1em;
+          margin: 1em;
+          font-size: larger;
+          font-family: monospace;
+        "
+      ></textarea>
+    </p>
   </div>
-  <div id="error" style="
-            display:none;
-            background-color: #900;
-            color: white;
-            padding: 1em;
-            margin: 1em;
-          ">
+
+  <div
+    id="error"
+    style="
+      display: none;
+      background-color: #900;
+      color: white;
+      padding: 1em;
+      margin: 1em;
+    "
+  >
     <h3>Something has gone wrong...</h3>
     <ul id="errors"></ul>
-    <div>
+  </div>
 </main>
 <script nomodule>
   alert("Sorry, your browser doesn't support the required features");
 </script>
 <script type="module">
   import {
-    uint8ToBase64,
-    base64ToUint8,
-    supportsEnoughCrypto,
-  } from "/assets/util.js";
-  window.onhashchange = () => window.location.reload();
+    checkBrowserSupport,
+    decrypt,
+    processPassphrase,
+    dom,
+  } from "/assets/poof.js";
 
   main();
   async function main() {
-    if (!(await supportsEnoughCrypto())) {
-      alert("Sorry, your browser doesn't support the required features");
+    const { ok, error } = await checkBrowserSupport();
+    if (!ok) {
+      alert(
+        "Sorry, your browser doesn't support the required features\n" +
+          error.message
+      );
       return;
     }
-    const $key = document.getElementById("key");
-    const $passphrase = document.getElementById("passphrase");
-    const $secret = document.getElementById("secret");
-    const $button = document.getElementById("recv");
-    const $result = document.getElementById("result");
-    const $error = document.getElementById("error");
-    const $errors = document.getElementById("errors");
+
+    const {
+      $key,
+      $passphrase,
+      $secret,
+      recv: $button,
+      $result,
+      $error,
+      $errors,
+    } = dom;
 
     function handleErrors(errs) {
-      $errors.textContent = '';
-      errs.forEach(err => {
+      $errors.textContent = "";
+      errs.forEach((err) => {
         const $li = document.createElement("li");
         $li.textContent = err;
         $errors.appendChild($li);
@@ -89,29 +110,27 @@
       );
       inflight = true;
       $button.disabled = true;
-      handleErrors(urlErrors)
+      handleErrors(urlErrors);
       return;
     }
-
-    const { subtle } = crypto;
 
     // only let the button be pressed once.
     let inflight = false;
     $button.addEventListener("click", async () => {
-      if (inflight) { return; }
+      if (inflight) {
+        return;
+      }
       inflight = true;
       $button.disabled = true;
 
       const url = new URL("/api/recv", location);
 
       // hash the passphrase.
-      const pass = new TextEncoder().encode($passphrase.value);
-      const hash = uint8ToBase64(
-        new Uint8Array(await subtle.digest("SHA-256", pass))
+      const { derivationKey, hash } = await processPassphrase(
+        $passphrase.value
       );
       const payload = { key: $key.value, hash };
-      console.log(payload);
-      let sealed;
+      let ciphertext;
       try {
         const { enc = null, errors = null } = await fetch(url.href, {
           method: "POST",
@@ -120,52 +139,32 @@
         }).then((r) => r.json());
 
         if (errors.length) {
-          handleErrors(errors)
+          handleErrors(errors);
           return;
         }
-        sealed = enc;
+        ciphertext = enc;
       } catch (err) {
-        handleErrors([err.message])
+        handleErrors([err.message]);
         return;
       }
       // anything after this and the secret is burned...
       $button.textContent = "Secret Burned";
       try {
-        // create a key from the passphrase.
-        const passphraseKey = await subtle.importKey(
-          "raw",
-          pass,
-          { name: "PBKDF2" },
-          false,
-          ["deriveKey"]
-        );
-
-        const [b64salt, b64iv, b64ct] = sealed.split(":");
-        const salt = base64ToUint8(b64salt);
-        const iv = base64ToUint8(b64iv);
-        const ct = base64ToUint8(b64ct);
-
-        const decKey = await subtle.deriveKey(
-          {
-            name: "PBKDF2",
-            salt,
-            iterations: 100000,
-            hash: "SHA-256",
-          },
-          passphraseKey,
-          { name: "AES-GCM", length: 256 },
-          false,
-          ["decrypt"]
-        );
-
-        const pt = await subtle.decrypt({ name: "AES-GCM", iv }, decKey, ct);
-        const msg = new TextDecoder().decode(pt);
-
+        const secret = await decrypt(ciphertext, derivationKey);
         // OK boom!
-        $secret.value = msg;
+        $secret.value = secret;
         $result.style.display = "block";
+        // if it was burned, then you will not be able to recover it.
+        // best warn on page unload
+        window.onbeforeunload = (evt) => {
+          evt.preventDefault();
+          const warning =
+            "Navigating away from a burned secret will prevent ever recovering it.\n\n" +
+            "Are you sure you wish to leave this page?";
+          return (evt.returnValue = warning);
+        };
       } catch (err) {
-        handleErrors([`Error decrypting secret - invalid. It is now burned`])
+        handleErrors([`Error decrypting secret - invalid. It is now burned`]);
       }
     });
   }
