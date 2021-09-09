@@ -1,5 +1,8 @@
 {{define "send"}}{{template "header"}}
 <main>
+  <p><strong>poof!</strong> is a one time password sharing service, so you don't email/IM passwords to colleagues/friends/family.
+  <p>There's a lot more technical detail on <a href="https://github.com/thechriswalker/poof">Github</a> and the source code is really small, so as to be auditable.
+  
   <h2>Share a secret</h2>
   <dl>
     <dt>Secret:</dt>
@@ -28,6 +31,9 @@
       Visiting the URL will not burn it, but clicking the
       <mark>reveal</mark> button on the linked page will.
     </p>
+    <p id="copy" style="display: none">
+      <button>copy to clipboard</button> <span></span>
+    </p>
     <p class="box good">
       <a id="link" target="_blank"></a>
     </p>
@@ -48,6 +54,7 @@
     encrypt,
     processPassphrase,
     generatePassphrase,
+    useClipboard,
     dom,
   } from "/assets/poof.js";
   main();
@@ -62,7 +69,10 @@
     }
 
     // elements
-    const { $secret, $ttl, $share, $result, $link, $error, $errors } = dom;
+    const { $secret, $ttl, $share, $result, $link, $error, $errors, $copy } = dom;
+
+    // set up clipboard
+    useClipboard($copy, $link)
 
     function handleErrors(errs) {
       $errors.textContent = "";

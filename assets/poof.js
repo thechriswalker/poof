@@ -162,3 +162,56 @@ export async function checkBrowserSupport() {
   }
   return { ok: true, error: null };
 }
+
+async function canUseClipboard() {
+  if (!navigator.clipboard) {
+    return false;
+  }
+  try {
+    const state = await navigator.permissions.query({ name: "clipboard-write" });
+    return state !== "denied";
+  } catch {
+    return false;
+  }
+}
+
+// try not to throw, but return success or not.
+async function copyToClipboard(text) {
+  if (!navigator.clipboard) {
+    return false;
+  }
+  try {
+    //just try it, we will catch the error.
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+export function useClipboard($container, $el) {
+  canUseClipboard().then(ok => {
+    if (ok) {
+      $container.style.display = "block";
+    }
+  });
+  const $status = $container.querySelector("span");
+  let copying = false;
+  $container.querySelector("button").addEventListener("click", async () => {
+    if (copying) { return; } copying = true;
+    $status.textContent = "...";
+    const ok = await copyToClipboard($el.textContent);
+    if (ok) {
+      $status.textContent = "Copied!";
+    } else {
+      $status.textContent = "Failed to copy :(";
+    }
+    setTimeout(() => {
+      if (ok) {
+        $status.textContent = "";
+      } else {
+        $container.style.display = "none";
+      }
+      copying = false;
+    }, 1000);
+  });
+}

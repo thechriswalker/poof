@@ -1,13 +1,12 @@
 {{define "recv"}}{{template "header"}}
 <main>
   <h2>Receive a Secret</h2>
-  <dl>
-    <dt>Key:</dt>
-    <dd><input type="text" disabled id="key" /></dd>
-    <dt>Passphrase:</dt>
-    <dd><input type="text" disabled id="passphrase" /></dd>
-    <dt><button id="recv">Reveal Secret</button></dt>
-  </dl>
+  <div style="display:none">
+    <input type="hidden" disabled id="passphrase" />
+    <input type="hidden" disabled id="key" />
+  </div>
+  <p>Secret Key: <code id="showkey"></code></p>
+  <p><button id="recv">Check and Reveal Secret</button></p>
   <div id="result" style="display: none">
     <h3>Secret Burned</h3>
     <p>
@@ -15,32 +14,21 @@
       you <strong>will not</strong> be able to see it again.
     </p>
 
-    <p>
-      <textarea
-        autocomplete="false"
-        spellcheck="false"
-        id="secret"
-        style="
-          background-color: #090;
-          color: white;
-          padding: 1em;
-          margin: 1em;
-          font-size: larger;
-          font-family: monospace;
-        "
-      ></textarea>
+    <p id="copy" style="display: none">
+      <button>copy to clipboard</button> <span></span>
     </p>
+
+      <div
+        id="secret"
+        class="box good"
+        style="whitespace:pre-wrap"
+      ></div>
   </div>
 
   <div
     id="error"
-    style="
-      display: none;
-      background-color: #900;
-      color: white;
-      padding: 1em;
-      margin: 1em;
-    "
+    class="box bad"
+    style="display: none"
   >
     <h3>Something has gone wrong...</h3>
     <ul id="errors"></ul>
@@ -54,6 +42,7 @@
     checkBrowserSupport,
     decrypt,
     processPassphrase,
+    useClipboard,
     dom,
   } from "/assets/poof.js";
 
@@ -70,13 +59,21 @@
 
     const {
       $key,
+      $showkey,
       $passphrase,
       $secret,
       recv: $button,
       $result,
       $error,
       $errors,
+      $copy,
     } = dom;
+
+
+    // clipboard
+    // set up clipboard
+    useClipboard($copy, $secret);
+
 
     function handleErrors(errs) {
       $errors.textContent = "";
@@ -94,6 +91,7 @@
     const urlErrors = [];
     if (key) {
       $key.value = key;
+      $showkey.textContent = key;
     } else {
       urlErrors.push("URL did not contain the `key`");
     }
@@ -152,7 +150,7 @@
       try {
         const secret = await decrypt(ciphertext, derivationKey);
         // OK boom!
-        $secret.value = secret;
+        $secret.textContent = secret;
         $result.style.display = "block";
         // if it was burned, then you will not be able to recover it.
         // best warn on page unload

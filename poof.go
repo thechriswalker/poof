@@ -172,12 +172,12 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var name string
 		switch r.URL.Path {
-		case "/", "/index.html":
-			name = "index"
 		case "/recv", "/recv/", "/recv/index.html":
 			name = "recv"
-		case "/send", "/send/", "/send/index.html":
+		case "/", "/index.html", "/send", "/send/", "/send/index.html":
 			name = "send"
+		case "/privacy", "/privacy/", "/privacy/index.html":
+			name = "privacy"
 		default:
 			// 404
 			http.Error(w, "404: Page not found", 404)
