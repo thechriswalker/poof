@@ -172,6 +172,8 @@ func main() {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		var name string
 		switch r.URL.Path {
+		case "/faq", "/faq/", "/faq/index.html":
+			name = "faq"
 		case "/recv", "/recv/", "/recv/index.html":
 			name = "recv"
 		case "/", "/index.html", "/send", "/send/", "/send/index.html":

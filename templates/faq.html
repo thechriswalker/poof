@@ -1,0 +1,50 @@
+{{define "faq"}}{{template "header"}}
+<main>
+<h2>Frequently Asked Questions</h2>
+
+<h3>What is <em>poof!</em>?</h3>
+
+<p><em>poof!</em> is a <strong>secure</strong>, <strong>time-constrained</strong>, <strong>one-time</strong> secret sharing serivce.</p>
+
+<h3>What does that mean?</h3>
+
+<p>Basically, <em>poof!</em> allows you to share a secret, such as a password, with someone else without it being silently intercepted.</p>
+<p>Rather than sending credentials directly to someone, which would risk exposure in transit or in the future if someone got access to your 
+  messages later on, <em>poof!</em> allows you to send a link which will allow the reciever to uncover the secret which two restrictions:</p>
+  <ol>
+    <li>The message can only be viewed <strong>once</strong></li>
+    <li>The message can only be viewed within a <strong>time limit</strong> set by the sender</li>
+  </ol>
+<p>If either the time limit has passed, or the message has been viewed the link will not work.</p>
+
+<h3>How does it work?</h3>
+<p>The full technical detail is available on <a href="https://github.com/thechriswalker/poof">github</a> but the main concept is as follows:</p>
+<ul>
+  <li>You enter the secret in your browser.</li>
+  <li>The browser creates a randomised encryption key and encrypts the secret.</li>
+  <li>The browser sends the <strong>encrypted secret</strong> to the server (NB <em>not</em> the key, <em>nor</em> the unencrypted secret so the server cannot reveal the data on it's own.</li>
+  <li>The browser creates a link with a token returned from the server and the encryption key. (NB the key is put in the "hash fragment" of the link, which will <strong>never</strong> be sent to the server.</li>
+  <li>You pass the link to the person you wish to share it with.</li>
+  <li>They follow the link, and click the "check and reveal" button.</li>
+  <li>Their browser sends a asks the server for the encrypted message using the token.</li>
+  <li>If the token is expired, or the server has deleted the encrypted message, an error is displayed to the reciever.</li>
+  <li>If the token is valid, the server deletes the message from it's store and sends it to the browser.</li>
+  <li>The browser decrypts the message with the key from the link.</li>
+  <li>The browser displays the secret.</li>
+</ul>
+
+<h3>Why should I use it?</h3>
+
+<p>Because you care about leaking sensitive information in instant messages and want a safer way to share the information.</p>
+
+<h3>Way not LastPass or another password service?</h3>
+
+<p>Well, yes most password manager services allow sharing passwords - so that is a good use case. If you or your organisation has such a service, then do use it instead. However sometimes you might want to share with a 3rd party without access to the password manager and in such cases, <em>poof!</em> might be useful.</p>
+
+<h3>Why should I trust it?</h3>
+<p>You shoudn't!</p>
+<p>Well, I reckon you can trust me, but don't take my word for it. If you want to be sure please check the source code or build and run your own version! I want this project to be useful to as many people as possible, so feel free to run your own version &mdash; it's the most secure way!</p>
+
+
+</main>
+{{template "footer"}}{{end}}
