@@ -8,14 +8,15 @@
 
 <h3>What does that mean?</h3>
 
-<p>Basically, <em>poof!</em> allows you to share a secret, such as a password, with someone else without it being silently intercepted.</p>
-<p>Rather than sending credentials directly to someone, which would risk exposure in transit or in the future if someone got access to your 
-  messages later on, <em>poof!</em> allows you to send a link which will allow the reciever to uncover the secret which two restrictions:</p>
+<p>Basically, <em>poof!</em> allows you to share a secret, such as a password, with someone else without it being <strong>silently</strong> intercepted.</p>
+<p>Rather than sending credentials directly to someone, which would risk exposure in transit or in the future if someone got access to your
+  messages later on, <em>poof!</em> allows you to send a link which will allow the reciever to uncover the secret with two restrictions:</p>
   <ol>
     <li>The message can only be viewed <strong>once</strong></li>
     <li>The message can only be viewed within a <strong>time limit</strong> set by the sender</li>
   </ol>
 <p>If either the time limit has passed, or the message has been viewed the link will not work.</p>
+<p>This means that if someone intercepted the message and stole the secret before you saw it, you would not be able to retrieve it and therefore <strong>you would know it had been intercepted and should be considered compromised.</strong></p>
 
 <h3>How does it work?</h3>
 <p>The full technical detail is available on <a href="https://github.com/thechriswalker/poof">github</a> but the main concept is as follows:</p>
@@ -39,7 +40,7 @@
 
 <h3>Way not LastPass or another password service?</h3>
 
-<p>Well, yes most password manager services allow sharing passwords - so that is a good use case. If you or your organisation has such a service, then do use it instead. However sometimes you might want to share with a 3rd party without access to the password manager and in such cases, <em>poof!</em> might be useful.</p>
+<p>Well yes, most password manager services allow sharing passwords &mdash; so that is a good use case. If you or your organisation has such a service, then do use it instead. However sometimes you might want to share with a 3rd party without access to the password manager and in such cases, <em>poof!</em> might be useful.</p>
 
 <h3>Why should I trust it?</h3>
 <p>You shoudn't!</p>
