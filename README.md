@@ -12,7 +12,8 @@ passphrase protected way.
 - The server only ever releases the encrypted secret once, within the given
   time.
 
-All data held in memory so server reload drops all secrets.
+All data held in memory (by default) so server reload drops all secrets. It can be configured to 
+persist data across reloads using an sqlite backed store.
 
 ## Demo
 
